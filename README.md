@@ -72,26 +72,48 @@ Correlated security event
 
 ## Event contract
 
-The first version of the contract lives in:
+The canonical contract lives in:
 
 - `schemas/security_event.schema.json`
 - `examples/network_event.json`
 - `examples/auth_event.json`
 
-The schema intentionally stays small at first. New fields should be added only when an actual integration requirement exists.
+The ingestion boundary validates events directly against this JSON Schema using Python `jsonschema`.
+
+### Validation guarantees
+
+The current ingestion layer enforces:
+
+- required fields
+- allowed sources and severities
+- valid ISO 8601/RFC 3339 timestamps
+- valid IPv4/IPv6 source and destination addresses
+- valid TCP/UDP port ranges
+- boolean rejection for integer-only port fields
+- rejection of undeclared top-level properties
+- non-empty event IDs
+- duplicate `event_id` rejection within one NDJSON batch
+
+Persistence-level uniqueness is still a separate concern and will be enforced when the shared storage workflow is introduced.
 
 ## First working integration path
 
-NetScope can now emit Security-Lab-compatible NDJSON:
+NetScope can emit Security-Lab-compatible NDJSON:
 
 ```bash
 ./build/netscope --once --json --connections > events.ndjson
 ```
 
-Security-Lab provides a small standard-library ingestion boundary that validates those events:
+Security-Lab validates those events against the canonical schema:
 
 ```bash
 python3 integration/ingest_ndjson.py events.ndjson
+```
+
+Install the validation dependency first:
+
+```bash
+python3 -m pip install -r requirements.txt
 ```
 
 This is intentionally additive: NetScope still works normally, and SOC-Forge's existing log pipeline is not replaced.
@@ -100,11 +122,12 @@ This is intentionally additive: NetScope still works normally, and SOC-Forge's e
 
 - [x] Security-Lab repository created
 - [x] Integration architecture documented
-- [x] Common event schema drafted
+- [x] Common event schema drafted and enforced
 - [x] Example network event
 - [x] Example authentication event
 - [x] NetScope JSON exporter
-- [x] Initial NDJSON ingestion boundary
+- [x] Schema-backed NDJSON ingestion
+- [x] Duplicate event ID protection per ingestion batch
 - [ ] Shared persistence workflow
 - [ ] Cross-source correlation
 - [ ] End-to-end integration tests
