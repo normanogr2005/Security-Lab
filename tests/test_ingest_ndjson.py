@@ -123,7 +123,7 @@ class TestIngestNdjson(unittest.TestCase):
     def test_additional_property_rejected(self):
         event = self.valid_event(unexpected_field="nope")
         path = self.write_ndjson(event)
-        with self.assertRaisesRegex(ValueError, "additional properties"):
+        with self.assertRaisesRegex(ValueError, "Additional properties"):
             ingest_ndjson.read_events(path)
 
     def test_duplicate_event_id_rejected(self):
