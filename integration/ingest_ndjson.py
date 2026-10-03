@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read Security-Lab NDJSON events from NetScope and validate the contract."""
+"""Read Security-Lab NDJSON events and validate the shared JSON Schema."""
 
 from __future__ import annotations
 
@@ -8,49 +8,78 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from jsonschema import Draft202012Validator, FormatChecker
 
-REQUIRED = {"event_id", "timestamp", "source", "event_type", "severity"}
-SOURCES = {"netscope", "socforge"}
-SEVERITIES = {"info", "low", "medium", "high", "critical"}
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SCHEMA_PATH = REPO_ROOT / "schemas" / "security_event.schema.json"
+
+
+with SCHEMA_PATH.open("r", encoding="utf-8") as schema_file:
+    SCHEMA = json.load(schema_file)
+
+VALIDATOR = Draft202012Validator(
+    SCHEMA,
+    format_checker=FormatChecker(),
+)
 
 
 def validate_event(event: dict[str, Any]) -> None:
-    missing = REQUIRED - event.keys()
-    if missing:
-        raise ValueError(f"missing required fields: {sorted(missing)}")
+    """Validate one event against the repository's canonical JSON Schema."""
 
-    if event["source"] not in SOURCES:
-        raise ValueError(f"invalid source: {event['source']!r}")
+    errors = sorted(
+        VALIDATOR.iter_errors(event),
+        key=lambda error: list(error.path),
+    )
 
-    if event["severity"] not in SEVERITIES:
-        raise ValueError(f"invalid severity: {event['severity']!r}")
+    if not errors:
+        return
 
-    for field in ("source_port", "destination_port"):
-        if field in event and event[field] is not None:
-            if not isinstance(event[field], int) or not 0 <= event[field] <= 65535:
-                raise ValueError(f"invalid {field}: {event[field]!r}")
+    messages = []
+    for error in errors:
+        location = ".".join(str(part) for part in error.path) or "<root>"
+        messages.append(f"{location}: {error.message}")
+
+    raise ValueError("; ".join(messages))
 
 
 def read_events(path: Path) -> list[dict[str, Any]]:
-    events: list[dict[str, Any]] = []
+    """Read and validate NDJSON, rejecting duplicate event IDs in one batch."""
 
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    events: list[dict[str, Any]] = []
+    seen_event_ids: set[str] = set()
+
+    for line_number, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(),
+        1,
+    ):
         if not line.strip():
             continue
 
         try:
             event = json.loads(line)
         except json.JSONDecodeError as exc:
-            raise ValueError(f"line {line_number}: invalid JSON: {exc}") from exc
+            raise ValueError(
+                f"line {line_number}: invalid JSON: {exc}"
+            ) from exc
 
         if not isinstance(event, dict):
-            raise ValueError(f"line {line_number}: event must be a JSON object")
+            raise ValueError(
+                f"line {line_number}: event must be a JSON object"
+            )
 
         try:
             validate_event(event)
         except ValueError as exc:
             raise ValueError(f"line {line_number}: {exc}") from exc
 
+        event_id = event["event_id"]
+        if event_id in seen_event_ids:
+            raise ValueError(
+                f"line {line_number}: duplicate event_id: {event_id!r}"
+            )
+
+        seen_event_ids.add(event_id)
         events.append(event)
 
     return events
