@@ -14,6 +14,7 @@
   "properties": {
     "event_id": {
       "type": "string",
+      "minLength": 1,
       "description": "Unique identifier for the event."
     },
     "timestamp": {
@@ -28,7 +29,8 @@
       ]
     },
     "event_type": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "severity": {
       "type": "string",
@@ -41,15 +43,33 @@
       ]
     },
     "source_ip": {
-      "type": [
-        "string",
-        "null"
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "ipv4"
+        },
+        {
+          "type": "string",
+          "format": "ipv6"
+        }
       ]
     },
     "destination_ip": {
-      "type": [
-        "string",
-        "null"
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "ipv4"
+        },
+        {
+          "type": "string",
+          "format": "ipv6"
+        }
       ]
     },
     "source_port": {
@@ -69,7 +89,8 @@
       "maximum": 65535
     },
     "message": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "metadata": {
       "type": "object",
