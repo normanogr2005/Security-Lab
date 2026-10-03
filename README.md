@@ -80,6 +80,22 @@ The first version of the contract lives in:
 
 The schema intentionally stays small at first. New fields should be added only when an actual integration requirement exists.
 
+## First working integration path
+
+NetScope can now emit Security-Lab-compatible NDJSON:
+
+```bash
+./build/netscope --once --json --connections > events.ndjson
+```
+
+Security-Lab provides a small standard-library ingestion boundary that validates those events:
+
+```bash
+python3 integration/ingest_ndjson.py events.ndjson
+```
+
+This is intentionally additive: NetScope still works normally, and SOC-Forge's existing log pipeline is not replaced.
+
 ## Current status
 
 - [x] Security-Lab repository created
@@ -87,8 +103,8 @@ The schema intentionally stays small at first. New fields should be added only w
 - [x] Common event schema drafted
 - [x] Example network event
 - [x] Example authentication event
-- [ ] NetScope JSON exporter
-- [ ] SOC-Forge event ingestion
+- [x] NetScope JSON exporter
+- [x] Initial NDJSON ingestion boundary
 - [ ] Shared persistence workflow
 - [ ] Cross-source correlation
 - [ ] End-to-end integration tests
