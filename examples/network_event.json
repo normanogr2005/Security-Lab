@@ -1,0 +1,16 @@
+{
+  "event_id": "netscope-example-001",
+  "timestamp": "2026-10-03T09:00:00Z",
+  "source": "netscope",
+  "event_type": "tcp_connection",
+  "severity": "info",
+  "source_ip": "192.168.1.20",
+  "destination_ip": "192.168.1.50",
+  "source_port": 51544,
+  "destination_port": 22,
+  "message": "TCP connection observed",
+  "metadata": {
+    "state": "ESTABLISHED",
+    "collector": "netscope"
+  }
+}
