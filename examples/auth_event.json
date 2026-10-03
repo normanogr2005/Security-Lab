@@ -1,0 +1,16 @@
+{
+  "event_id": "socforge-example-001",
+  "timestamp": "2026-10-03T09:02:15Z",
+  "source": "socforge",
+  "event_type": "authentication_failed",
+  "severity": "medium",
+  "source_ip": "192.168.1.20",
+  "destination_ip": null,
+  "source_port": null,
+  "destination_port": 22,
+  "message": "Failed SSH authentication attempt",
+  "metadata": {
+    "rule_id": "AUTH-001",
+    "collector": "socforge"
+  }
+}
