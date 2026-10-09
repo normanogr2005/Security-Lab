@@ -53,8 +53,7 @@ class TestIngestNdjson(unittest.TestCase):
         return path
 
     def test_valid_ipv4_event(self):
-        event = self.valid_event()
-        ingest_ndjson.validate_event(event)
+        ingest_ndjson.validate_event(self.valid_event())
 
     def test_valid_ipv6_event(self):
         event = self.valid_event(
@@ -71,6 +70,11 @@ class TestIngestNdjson(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, r"line 1: invalid JSON"):
             ingest_ndjson.read_events(path)
 
+    def test_non_object_json_rejected(self):
+        path = self.write_ndjson('["not", "an", "event"]')
+        with self.assertRaisesRegex(ValueError, "event must be a JSON object"):
+            ingest_ndjson.read_events(path)
+
     def test_missing_required_field(self):
         event = self.valid_event()
         del event["severity"]
@@ -79,50 +83,46 @@ class TestIngestNdjson(unittest.TestCase):
             ingest_ndjson.read_events(path)
 
     def test_invalid_source(self):
-        event = self.valid_event(source="unknown")
-        path = self.write_ndjson(event)
+        path = self.write_ndjson(self.valid_event(source="unknown"))
         with self.assertRaisesRegex(ValueError, "source"):
             ingest_ndjson.read_events(path)
 
     def test_invalid_severity(self):
-        event = self.valid_event(severity="urgent")
-        path = self.write_ndjson(event)
+        path = self.write_ndjson(self.valid_event(severity="urgent"))
         with self.assertRaisesRegex(ValueError, "severity"):
             ingest_ndjson.read_events(path)
 
     def test_port_out_of_range(self):
-        event = self.valid_event(destination_port=65536)
-        path = self.write_ndjson(event)
+        path = self.write_ndjson(self.valid_event(destination_port=65536))
         with self.assertRaisesRegex(ValueError, "destination_port"):
             ingest_ndjson.read_events(path)
 
     def test_boolean_port_rejected(self):
-        event = self.valid_event(destination_port=True)
-        path = self.write_ndjson(event)
+        path = self.write_ndjson(self.valid_event(destination_port=True))
         with self.assertRaisesRegex(ValueError, "destination_port"):
             ingest_ndjson.read_events(path)
 
     def test_invalid_timestamp_rejected(self):
-        event = self.valid_event(timestamp="not-a-timestamp")
-        path = self.write_ndjson(event)
+        path = self.write_ndjson(self.valid_event(timestamp="not-a-timestamp"))
         with self.assertRaisesRegex(ValueError, "timestamp"):
             ingest_ndjson.read_events(path)
 
     def test_empty_event_id_rejected(self):
-        event = self.valid_event(event_id="")
-        path = self.write_ndjson(event)
+        path = self.write_ndjson(self.valid_event(event_id=""))
         with self.assertRaisesRegex(ValueError, "event_id"):
             ingest_ndjson.read_events(path)
 
     def test_invalid_ip_rejected(self):
-        event = self.valid_event(source_ip="999.999.999.999")
-        path = self.write_ndjson(event)
+        path = self.write_ndjson(
+            self.valid_event(source_ip="999.999.999.999")
+        )
         with self.assertRaisesRegex(ValueError, "source_ip"):
             ingest_ndjson.read_events(path)
 
     def test_additional_property_rejected(self):
-        event = self.valid_event(unexpected_field="nope")
-        path = self.write_ndjson(event)
+        path = self.write_ndjson(
+            self.valid_event(unexpected_field="nope")
+        )
         with self.assertRaisesRegex(ValueError, "Additional properties"):
             ingest_ndjson.read_events(path)
 
@@ -136,6 +136,19 @@ class TestIngestNdjson(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "duplicate event_id"):
             ingest_ndjson.read_events(path)
+
+    def test_iterator_yields_before_reading_later_invalid_line(self):
+        first = self.valid_event(event_id="first-event")
+        path = self.write_ndjson(first, "{not-json")
+        events = ingest_ndjson.iter_events(path)
+
+        self.assertEqual(next(events)["event_id"], "first-event")
+        with self.assertRaisesRegex(ValueError, "line 2: invalid JSON"):
+            next(events)
+
+    def test_empty_file_returns_no_events(self):
+        path = self.write_ndjson()
+        self.assertEqual(ingest_ndjson.read_events(path), [])
 
     def test_multiple_ndjson_events(self):
         ipv4 = self.valid_event(event_id="netscope-ipv4-001")

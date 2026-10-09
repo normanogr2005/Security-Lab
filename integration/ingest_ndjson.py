@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -43,46 +44,52 @@ def validate_event(event: dict[str, Any]) -> None:
     raise ValueError("; ".join(messages))
 
 
-def read_events(path: Path) -> list[dict[str, Any]]:
-    """Read and validate NDJSON, rejecting duplicate event IDs in one batch."""
+def iter_events(path: Path) -> Iterator[dict[str, Any]]:
+    """Yield validated NDJSON events one at a time.
 
-    events: list[dict[str, Any]] = []
+    Input lines are read incrementally so the CLI does not need to retain the
+    full event batch in memory. Event IDs are tracked for duplicate detection
+    within this input file.
+    """
+
     seen_event_ids: set[str] = set()
 
-    for line_number, line in enumerate(
-        path.read_text(encoding="utf-8").splitlines(),
-        1,
-    ):
-        if not line.strip():
-            continue
+    with path.open("r", encoding="utf-8") as event_file:
+        for line_number, line in enumerate(event_file, 1):
+            if not line.strip():
+                continue
 
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError as exc:
-            raise ValueError(
-                f"line {line_number}: invalid JSON: {exc}"
-            ) from exc
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"line {line_number}: invalid JSON: {exc}"
+                ) from exc
 
-        if not isinstance(event, dict):
-            raise ValueError(
-                f"line {line_number}: event must be a JSON object"
-            )
+            if not isinstance(event, dict):
+                raise ValueError(
+                    f"line {line_number}: event must be a JSON object"
+                )
 
-        try:
-            validate_event(event)
-        except ValueError as exc:
-            raise ValueError(f"line {line_number}: {exc}") from exc
+            try:
+                validate_event(event)
+            except ValueError as exc:
+                raise ValueError(f"line {line_number}: {exc}") from exc
 
-        event_id = event["event_id"]
-        if event_id in seen_event_ids:
-            raise ValueError(
-                f"line {line_number}: duplicate event_id: {event_id!r}"
-            )
+            event_id = event["event_id"]
+            if event_id in seen_event_ids:
+                raise ValueError(
+                    f"line {line_number}: duplicate event_id: {event_id!r}"
+                )
 
-        seen_event_ids.add(event_id)
-        events.append(event)
+            seen_event_ids.add(event_id)
+            yield event
 
-    return events
+
+def read_events(path: Path) -> list[dict[str, Any]]:
+    """Read and validate all events; retained for callers needing a list."""
+
+    return list(iter_events(path))
 
 
 def main() -> int:
@@ -90,17 +97,19 @@ def main() -> int:
         print(f"usage: {sys.argv[0]} EVENTS.ndjson", file=sys.stderr)
         return 2
 
+    counts: dict[str, int] = {}
+    total = 0
+
     try:
-        events = read_events(Path(sys.argv[1]))
-    except (OSError, ValueError) as exc:
+        for event in iter_events(Path(sys.argv[1])):
+            event_type = event["event_type"]
+            counts[event_type] = counts.get(event_type, 0) + 1
+            total += 1
+    except (OSError, UnicodeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    counts: dict[str, int] = {}
-    for event in events:
-        counts[event["event_type"]] = counts.get(event["event_type"], 0) + 1
-
-    print(f"validated_events={len(events)}")
+    print(f"validated_events={total}")
     for event_type, count in sorted(counts.items()):
         print(f"{event_type}={count}")
 
