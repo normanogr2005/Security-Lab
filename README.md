@@ -104,19 +104,34 @@ NetScope can emit Security-Lab-compatible NDJSON:
 ./build/netscope --once --json --connections > events.ndjson
 ```
 
-Security-Lab validates those events against the canonical schema:
-
-```bash
-python3 integration/ingest_ndjson.py events.ndjson
-```
-
-Install the validation dependency first:
+Install the validation dependency and validate the generated events:
 
 ```bash
 python3 -m pip install -r requirements.txt
+python3 integration/ingest_ndjson.py events.ndjson
 ```
 
+Example successful output:
+
+```text
+validated_events=2
+tcp_connection=2
+```
+
+The validator reads the input incrementally, reports the number of validated events by type, and exits with a non-zero status when an input file cannot be read or contains invalid data. It still tracks event IDs for duplicate detection within the file. The `read_events()` helper remains available for callers that explicitly need all events as a list.
+
 This is intentionally additive: NetScope still works normally, and SOC-Forge's existing log pipeline is not replaced.
+
+## Testing
+
+Run the automated unit tests locally:
+
+```bash
+python3 -m pip install -r requirements.txt
+python3 -m unittest discover -s tests -v
+```
+
+GitHub Actions runs this test suite on pushes and pull requests.
 
 ## Current status
 
@@ -128,6 +143,8 @@ This is intentionally additive: NetScope still works normally, and SOC-Forge's e
 - [x] NetScope JSON exporter
 - [x] Schema-backed NDJSON ingestion
 - [x] Duplicate event ID protection per ingestion batch
+- [x] Incremental NDJSON validation in the CLI
+- [x] Automated validation tests in CI
 - [ ] Shared persistence workflow
 - [ ] Cross-source correlation
 - [ ] End-to-end integration tests
